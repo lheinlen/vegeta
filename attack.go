@@ -53,6 +53,7 @@ func attackCmd() command {
 	fs.Var(&rateFlag{&opts.rate}, "rate", "Number of requests per time unit [0 = infinity]")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.proxyHeaders, "proxy-header", "Proxy CONNECT header")
+	fs.BoolVar(&opts.proxyProtocol, "proxy-protocol", false, "Send proxy protocol v1 header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 	fs.BoolVar(&opts.keepalive, "keepalive", true, "Use persistent connections")
 	fs.StringVar(&opts.unixSocket, "unix-socket", "", "Connect over a unix socket. This overrides the host address in target URLs")
@@ -95,6 +96,7 @@ type attackOpts struct {
 	maxBody        int64
 	headers        headers
 	proxyHeaders   headers
+	proxyProtocol  bool
 	laddr          localAddr
 	keepalive      bool
 	resolvers      csl
@@ -188,6 +190,7 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.UnixSocket(opts.unixSocket),
 		vegeta.ProxyHeader(proxyHdr),
 		vegeta.ChunkedBody(opts.chunked),
+		vegeta.ProxyProtocol(opts.proxyProtocol),
 	)
 
 	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)

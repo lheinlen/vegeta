@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pires/go-proxyproto"
 	"golang.org/x/net/http2"
 )
 
@@ -256,6 +257,52 @@ func ProxyHeader(h http.Header) func(*Attacker) {
 	return func(a *Attacker) {
 		if tr, ok := a.client.Transport.(*http.Transport); ok {
 			tr.ProxyConnectHeader = h
+		}
+	}
+}
+
+func ProxyProtocol(enabled bool) func(*Attacker) {
+	return func(a *Attacker) {
+		if !enabled {
+			return
+		}
+
+		if tr, ok := a.client.Transport.(*http.Transport); ok {
+			tr.Dial = func(network, addr string) (net.Conn, error) {
+				conn, err := a.dialer.Dial(network, addr)
+				if err != nil {
+					return conn, err
+				}
+
+				local, ok := conn.LocalAddr().(*net.TCPAddr)
+				if !ok {
+					return nil, fmt.Errorf("could not get local TCP address")
+				}
+
+				remote, ok := conn.RemoteAddr().(*net.TCPAddr)
+				if !ok {
+					return nil, fmt.Errorf("could not get remote TCP address")
+				}
+
+				header := &proxyproto.Header{
+					Version:           1,
+					Command:           proxyproto.PROXY,
+					TransportProtocol: proxyproto.TCPv4,
+					SourceAddr: &net.TCPAddr{
+						IP:   local.IP,
+						Port: local.Port,
+					},
+					DestinationAddr: &net.TCPAddr{
+						IP:   remote.IP,
+						Port: remote.Port,
+					},
+				}
+				if _, err = header.WriteTo(conn); err != nil {
+					return nil, fmt.Errorf("failed to write proxy protocol header: %v", err)
+				}
+
+				return conn, nil
+			}
 		}
 	}
 }
